@@ -1,0 +1,1925 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WindyBox 3D — Advanced Synoptic Meteorological Simulator</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            hudbg: 'rgba(7, 11, 22, 0.88)',
+            panelbg: 'rgba(10, 15, 30, 0.92)',
+            cybercyan: '#00f0ff',
+            cybergreen: '#00ff9d',
+            cyberamber: '#ffb700',
+            cyberred: '#ff3366',
+            panelborder: 'rgba(0, 240, 255, 0.22)'
+          },
+          boxShadow: {
+            'glow-cyan': '0 0 15px rgba(0, 240, 255, 0.35)',
+            'glow-green': '0 0 15px rgba(0, 255, 157, 0.35)',
+            'glow-red': '0 0 15px rgba(255, 51, 102, 0.35)'
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Three.js Library & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@300;400;600;700&display=swap');
+
+    :root {
+      --bg-dark: #02040a;
+      --cyber-cyan: #00f0ff;
+      --cyber-green: #00ff9d;
+      --cyber-pink: #ff007f;
+      --panel-border: rgba(0, 240, 255, 0.25);
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      user-select: none;
+      color: #cbd5e1;
+    }
+
+    .font-hud { font-family: 'Chakra Petch', sans-serif; }
+    .font-code { font-family: 'JetBrains Mono', monospace; }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* Modern Glassmorphism Styling */
+    .hud-panel {
+      background: rgba(8, 12, 22, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 240, 255, 0.22);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 240, 255, 0.05);
+      border-radius: 8px;
+    }
+
+    .hud-panel-header {
+      background: linear-gradient(90deg, rgba(0, 240, 255, 0.12) 0%, rgba(0, 0, 0, 0) 100%);
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+    }
+
+    .tool-btn {
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(15, 23, 42, 0.8);
+      cursor: pointer;
+    }
+    .tool-btn:hover {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: rgba(0, 240, 255, 0.5);
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+    }
+    .tool-btn.active {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.25) 0%, rgba(0, 255, 157, 0.2) 100%);
+      color: #ffffff;
+      border-color: #00f0ff;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+    }
+
+    .nav-tab {
+      transition: all 0.15s ease;
+      border-bottom: 2px solid transparent;
+    }
+    .nav-tab.active {
+      border-bottom-color: #00f0ff;
+      color: #00f0ff;
+      background: rgba(0, 240, 255, 0.08);
+    }
+
+    /* Range Sliders Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      border-radius: 4px;
+      height: 6px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #00f0ff;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 8px #00f0ff;
+    }
+
+    .grad-wind { background: linear-gradient(to right, #1e3a8a, #0284c7, #00ff9d, #eab308, #ef4444, #f43f5e, #ffffff); }
+    .grad-sst { background: linear-gradient(to right, #030712, #1d4ed8, #00ff9d, #f59e0b, #ef4444, #f43f5e); }
+    .grad-radar { background: linear-gradient(to right, #041014, #0e5250, #22a36b, #d9a826, #e63939, #f266f2); }
+    .grad-cape { background: linear-gradient(to right, #050508, #2a3a5e, #6e4190, #c43d78, #f05050); }
+
+    #sidebar-panel {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+    }
+    #sidebar-panel.minimized {
+      transform: translateX(-110%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Pulse animation for active system indicators */
+    @keyframes hud-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(0, 240, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
+    }
+    .pulse-hud { animation: hud-pulse 2s infinite; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: rgba(5, 8, 16, 0.8); }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 240, 255, 0.3); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 240, 255, 0.6); }
+  </style>
+</head>
+<body class="relative w-full h-full select-none overflow-hidden">
+
+  <!-- 3D WebGL Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <header class="absolute top-3 left-3 right-3 flex items-center justify-between z-20 pointer-events-none">
+    <div class="flex items-center space-x-2 pointer-events-auto">
+      
+      <!-- Panel Expand Toggle -->
+      <button id="expandSidebarBtn" onclick="toggleSidebar()" class="hud-panel w-10 h-10 hidden flex items-center justify-center text-cybercyan hover:text-white hover:bg-cyan-500/20 transition shadow-glow-cyan" title="Expand Control Console">
+        <i class="fa-solid fa-bars text-sm"></i>
+      </button>
+
+      <!-- App Branding Logo -->
+      <div class="hud-panel px-4 py-2 flex items-center space-x-3 border-l-4 border-l-cybercyan">
+        <div class="w-8 h-8 rounded bg-cyan-950/80 border border-cybercyan flex items-center justify-center text-cybercyan font-bold text-sm shadow-glow-cyan">
+          <i class="fa-solid fa-globe"></i>
+        </div>
+        <div>
+          <h1 class="text-xs font-bold tracking-widest text-white uppercase font-hud flex items-center gap-2">
+            WindyBox <span class="text-[9px] bg-cyan-950 text-cybercyan border border-cybercyan/50 px-1.5 py-0.5 font-code rounded">SYNOPTIC 3D</span>
+          </h1>
+          <p class="text-[9px] text-cyan-400/80 font-code tracking-wider uppercase">STATIC PLANET METEOROLOGY ENGINE</p>
+        </div>
+      </div>
+
+      <!-- Projection Switcher -->
+      <div class="hud-panel p-1 flex items-center space-x-1">
+        <button id="viewBtn-globe" onclick="switchViewMode('globe')" class="px-3 py-1.5 text-xs font-hud font-bold bg-cybercyan text-black rounded transition">
+          <i class="fa-solid fa-globe mr-1"></i> Globe
+        </button>
+        <button id="viewBtn-terrain" onclick="switchViewMode('terrain')" class="px-3 py-1.5 text-xs font-hud font-semibold text-slate-300 hover:text-white hover:bg-white/10 rounded transition">
+          <i class="fa-solid fa-mountain mr-1"></i> 3D Terrain
+        </button>
+        <button id="viewBtn-flat" onclick="switchViewMode('flat')" class="px-3 py-1.5 text-xs font-hud font-semibold text-slate-300 hover:text-white hover:bg-white/10 rounded transition">
+          <i class="fa-solid fa-map mr-1"></i> 2D Map
+        </button>
+      </div>
+
+      <!-- Atmosphere Pressure Level Selector -->
+      <div class="hud-panel p-1 flex items-center space-x-1">
+        <button id="levelBtn-1000" onclick="setAtmosphereLevel(1000)" class="tool-btn active px-2.5 py-1 text-[11px] font-code font-bold transition" title="Surface Boundary Layer">
+          1000 hPa
+        </button>
+        <button id="levelBtn-500" onclick="setAtmosphereLevel(500)" class="tool-btn px-2.5 py-1 text-[11px] font-code text-slate-300 transition" title="Mid-Troposphere Steering Level">
+          500 hPa
+        </button>
+        <button id="levelBtn-300" onclick="setAtmosphereLevel(300)" class="tool-btn px-2.5 py-1 text-[11px] font-code text-slate-300 transition" title="Upper Jet Stream Level">
+          300 hPa
+        </button>
+      </div>
+
+      <!-- Seasonal Cycle Scrub Bar -->
+      <div class="hud-panel px-3 py-1.5 flex items-center space-x-2 text-xs">
+        <i class="fa-solid fa-calendar-days text-cybercyan text-xs"></i>
+        <span id="dateReadout" class="font-code font-bold text-white text-xs">2026 - JUL 15</span>
+        <span id="seasonBadge" class="text-[9px] bg-slate-900 text-cybercyan border border-cybercyan/40 px-1.5 py-0.5 font-code uppercase rounded">Summer Solstice</span>
+        <div class="w-20 flex items-center ml-1">
+          <input type="range" id="monthSlider" min="0" max="11" step="1" value="6" oninput="onMonthChange(this.value)" class="w-full cursor-pointer" title="Adjust Season / Month">
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry & Quick Action Bar -->
+    <div class="flex items-center space-x-2 pointer-events-auto">
+      <div class="hud-panel px-3.5 py-1.5 flex items-center space-x-3 text-xs">
+        <div>
+          <span class="text-slate-400 block text-[9px] font-code uppercase">MAX WIND</span>
+          <span id="speedReadout" class="font-code font-bold text-cybercyan">0.0 km/h</span>
+        </div>
+        <div class="w-px h-6 bg-cyan-500/20"></div>
+        <div>
+          <span class="text-slate-400 block text-[9px] font-code uppercase">MIN PRESSURE</span>
+          <span id="pressureReadout" class="font-code text-cybergreen font-bold">910 hPa</span>
+        </div>
+        <div class="w-px h-6 bg-cyan-500/20"></div>
+        <div>
+          <span class="text-slate-400 block text-[9px] font-code uppercase">ACTIVE LOWS</span>
+          <span id="systemCountReadout" class="font-code text-white font-bold">2 Systems</span>
+        </div>
+      </div>
+
+      <!-- Simulation Play/Pause & Speed -->
+      <div class="hud-panel p-1 flex items-center space-x-1">
+        <button id="pauseBtn" onclick="togglePause()" class="w-8 h-8 flex items-center justify-center text-cybercyan hover:bg-cyan-500/20 rounded transition" title="Pause / Play">
+          <i id="pauseIcon" class="fa-solid fa-pause text-xs"></i>
+        </button>
+        <button onclick="setSimSpeed(0.5)" class="px-2 py-1 text-[10px] font-code rounded text-slate-300 hover:bg-white/10">0.5x</button>
+        <button onclick="setSimSpeed(1.0)" class="px-2 py-1 text-[10px] font-code rounded bg-cybercyan text-black font-bold">1.0x</button>
+        <button onclick="setSimSpeed(2.5)" class="px-2 py-1 text-[10px] font-code rounded text-slate-300 hover:bg-white/10">2.5x</button>
+      </div>
+
+      <button onclick="toggleAudio()" class="hud-panel w-9 h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 rounded transition" title="Toggle Wind Acoustic FX">
+        <i class="fa-solid fa-volume-xmark text-xs" id="audioIcon"></i>
+      </button>
+
+      <button onclick="toggleHelpModal()" class="hud-panel w-9 h-9 flex items-center justify-center text-slate-cyan hover:text-white hover:bg-white/10 rounded transition" title="Physics & Operating Guide">
+        <i class="fa-solid fa-graduation-cap text-xs text-cybercyan"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR CONTROL CONSOLE -->
+  <aside id="sidebar-panel" class="absolute top-16 left-3 bottom-3 w-96 z-20 flex flex-col pointer-events-none">
+    
+    <div class="hud-panel flex-1 flex flex-col pointer-events-auto overflow-hidden">
+      
+      <!-- Panel Header -->
+      <div class="hud-panel-header p-3 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-sliders text-cybercyan text-sm"></i>
+          <span class="text-xs font-hud font-bold uppercase tracking-widest text-white">METEOROLOGICAL CONSOLE</span>
+        </div>
+        <button onclick="toggleSidebar()" class="w-6 h-6 bg-slate-800/80 hover:bg-cyan-500/30 text-slate-300 hover:text-white flex items-center justify-center transition rounded border border-white/10" title="Collapse Panel">
+          <i class="fa-solid fa-chevron-left text-xs"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="grid grid-cols-3 text-xs font-hud font-bold border-b border-cyan-500/20 bg-slate-950/60">
+        <button onclick="switchTab('spawner')" id="tabBtn-spawner" class="nav-tab active py-2.5 text-center text-slate-300">
+          <i class="fa-solid fa-bolt mr-1"></i> Systems
+        </button>
+        <button onclick="switchTab('layers')" id="tabBtn-layers" class="nav-tab py-2.5 text-center text-slate-300">
+          <i class="fa-solid fa-layer-group mr-1"></i> Climate
+        </button>
+        <button onclick="switchTab('physics')" id="tabBtn-physics" class="nav-tab py-2.5 text-center text-slate-300">
+          <i class="fa-solid fa-wind mr-1"></i> Flow Engine
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="p-3 flex-1 overflow-y-auto space-y-3 font-code">
+
+        <!-- TAB 1: SPAWNER & INSPECTOR -->
+        <div id="tabContent-spawner" class="space-y-3">
+          
+          <!-- SELECTED SYSTEM INSPECTOR CARD -->
+          <div id="inspectorCard" class="bg-slate-950/90 border border-cybercyan/50 p-3 space-y-2 rounded-md shadow-glow-cyan">
+            <div class="flex items-center justify-between pb-2 border-b border-cyan-500/30">
+              <span class="text-[11px] font-hud font-bold uppercase tracking-wider text-cybercyan flex items-center gap-1.5">
+                <i class="fa-solid fa-crosshairs text-cybergreen"></i>
+                <span id="inspectorTitle">SYSTEM INSPECTOR</span>
+              </span>
+              <button onclick="deselectSystem()" class="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800 border border-white/10">
+                <i class="fa-solid fa-xmark mr-1"></i> Deselect
+              </button>
+            </div>
+            <div id="inspectorContent">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- SPAWNER TOOL TARGET CONFIG -->
+          <div class="bg-slate-900/80 border border-white/10 p-3 space-y-2.5 rounded-md">
+            <div class="flex items-center justify-between">
+              <label class="text-[10px] font-hud font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1">
+                <i class="fa-solid fa-plus-circle text-cybergreen"></i> SPAWN NEW WEATHER VORTEX
+              </label>
+              <span id="activeToolLabel" class="text-[9px] font-code text-cybercyan bg-cyan-950 px-2 py-0.5 rounded border border-cybercyan/40">
+                TROPICAL CYCLONE
+              </span>
+            </div>
+
+            <!-- Target Sliders -->
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <span>Target Pressure</span>
+                  <span id="spawnerPressureVal" class="text-cybergreen font-bold">920 hPa</span>
+                </div>
+                <input type="range" id="spawnerPressureSlider" min="880" max="1035" step="1" value="920" oninput="updateSpawnerSettings()" class="w-full cursor-pointer">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <span>Target Radius</span>
+                  <span id="spawnerRadiusVal" class="text-cybergreen font-bold">850 km</span>
+                </div>
+                <input type="range" id="spawnerRadiusSlider" min="150" max="2500" step="25" value="850" oninput="updateSpawnerSettings()" class="w-full cursor-pointer">
+              </div>
+            </div>
+
+            <!-- Tool Mode Selectors -->
+            <div class="grid grid-cols-3 gap-1.5 pt-1">
+              <button onclick="setTool('vortex')" id="tool-vortex" class="tool-btn active flex flex-col items-center justify-center p-2 text-slate-200" title="Tropical Cyclone (Warm Core)">
+                <i class="fa-solid fa-hurricane text-xs mb-1 text-cyberred"></i>
+                <span class="text-[9px]">Tropical</span>
+              </button>
+
+              <button onclick="setTool('subtropical')" id="tool-subtropical" class="tool-btn flex flex-col items-center justify-center p-2 text-slate-200" title="Subtropical Cyclone (Hybrid Core)">
+                <i class="fa-solid fa-hurricane text-xs mb-1 text-orange-400"></i>
+                <span class="text-[9px]">Subtrop.</span>
+              </button>
+              
+              <button onclick="setTool('extratropical')" id="tool-extratropical" class="tool-btn flex flex-col items-center justify-center p-2 text-slate-200" title="Extratropical Cyclone / Frontal System">
+                <i class="fa-solid fa-cloud-bolt text-xs mb-1 text-cyberamber"></i>
+                <span class="text-[9px]">Extratrop.</span>
+              </button>
+
+              <button onclick="setTool('sink')" id="tool-sink" class="tool-btn flex flex-col items-center justify-center p-2 text-slate-200" title="Low Pressure Center (L)">
+                <i class="fa-solid fa-circle-minus text-xs mb-1 text-teal-400"></i>
+                <span class="text-[9px]">Low (L)</span>
+              </button>
+
+              <button onclick="setTool('source')" id="tool-source" class="tool-btn flex flex-col items-center justify-center p-2 text-slate-200" title="High Pressure Center (H) Anticyclone">
+                <i class="fa-solid fa-circle-plus text-xs mb-1 text-blue-400"></i>
+                <span class="text-[9px]">High (H)</span>
+              </button>
+
+              <button onclick="setTool('inspect')" id="tool-inspect" class="tool-btn flex flex-col items-center justify-center p-2 text-slate-200" title="Atmospheric Probe Tool">
+                <i class="fa-solid fa-crosshairs text-xs mb-1 text-cybercyan"></i>
+                <span class="text-[9px]">Probe</span>
+              </button>
+            </div>
+
+            <!-- Instant Spawning Actions -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button onclick="spawnSystemAtCenter()" class="py-2 bg-cyan-950/80 hover:bg-cyan-900 border border-cybercyan/50 text-cybercyan font-hud text-xs font-bold rounded flex items-center justify-center gap-1.5 transition">
+                <i class="fa-solid fa-location-crosshairs"></i> SPAWN CENTER
+              </button>
+              <button onclick="spawnRandomSystem()" class="py-2 bg-slate-800 hover:bg-slate-700 border border-white/20 text-slate-200 font-hud text-xs font-bold rounded flex items-center justify-center gap-1.5 transition">
+                <i class="fa-solid fa-dice"></i> SPAWN RANDOM
+              </button>
+            </div>
+          </div>
+
+          <!-- ACTIVE SYSTEMS MANAGER -->
+          <div class="bg-slate-900/80 border border-white/10 p-3 space-y-2 rounded-md">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-hud font-bold uppercase tracking-wider text-slate-200">ACTIVE SYSTEMS LIST</span>
+              <span id="activeCountBadge" class="text-[10px] font-code text-cybercyan font-bold">2 Systems</span>
+            </div>
+
+            <div id="activeSystemsList" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 2: OVERLAY LAYERS & ENSO CLIMATE -->
+        <div id="tabContent-layers" class="space-y-3 hidden">
+          
+          <!-- FIELD OVERLAYS -->
+          <div class="bg-slate-900/80 border border-white/10 p-3 space-y-2 rounded-md">
+            <label class="text-[10px] font-hud font-bold uppercase tracking-wider text-slate-200 block">
+              <i class="fa-solid fa-layer-group text-cybercyan mr-1"></i> VISUAL FIELD OVERLAY
+            </label>
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <button onclick="setOverlayLayer('none')" id="layerBtn-none" class="p-2 bg-cybercyan text-black font-hud font-bold flex items-center gap-2 rounded">
+                <i class="fa-solid fa-wind"></i> Wind Flow
+              </button>
+              <button onclick="setOverlayLayer('sst')" id="layerBtn-sst" class="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-2 rounded">
+                <i class="fa-solid fa-temperature-full text-cyberred"></i> SST Heatmap
+              </button>
+              <button onclick="setOverlayLayer('radar')" id="layerBtn-radar" class="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-2 rounded">
+                <i class="fa-solid fa-cloud-showers-heavy text-cybergreen"></i> Radar dBZ
+              </button>
+              <button onclick="setOverlayLayer('cape')" id="layerBtn-cape" class="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-2 rounded">
+                <i class="fa-solid fa-bolt text-purple-400"></i> CAPE Energy
+              </button>
+            </div>
+          </div>
+
+          <!-- ENSO CLIMATE OSCILLATION PHASE -->
+          <div class="bg-slate-900/80 border border-white/10 p-3 space-y-2 rounded-md">
+            <label class="text-[10px] font-hud font-bold uppercase tracking-wider text-slate-200 block">
+              <i class="fa-solid fa-water text-cybercyan mr-1"></i> ENSO PACIFIC CLIMATE PHASE
+            </label>
+            <div class="grid grid-cols-3 gap-1.5 text-xs">
+              <button onclick="setENSOPhase('neutral')" id="ensoBtn-neutral" class="p-2 bg-cybercyan text-black font-hud font-bold rounded">
+                Neutral
+              </button>
+              <button onclick="setENSOPhase('el_nino')" id="ensoBtn-el_nino" class="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 rounded">
+                El Niño
+              </button>
+              <button onclick="setENSOPhase('la_nina')" id="ensoBtn-la_nina" class="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 rounded">
+                La Niña
+              </button>
+            </div>
+            <div id="ensoDescription" class="text-[10px] font-code text-slate-400 bg-slate-950 p-2 rounded border border-white/10 mt-1">
+              Normal Pacific trade winds and neutral sea surface temperature gradient.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 3: PHYSICS & PARTICLE FLOW -->
+        <div id="tabContent-physics" class="space-y-3 hidden">
+          
+          <!-- STORM STEERING & DRIFT -->
+          <div class="bg-slate-900/80 border border-white/10 p-3 space-y-2.5 rounded-md">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-hud font-bold uppercase tracking-wider text-slate-200">STEERING & BETA DRIFT</span>
+              <button id="stormMotionBtn" onclick="toggleStormMotion()" class="px-2.5 py-1 text-[10px] font-code rounded bg-cybergreen text-black font-bold transition hover:bg-emerald-400">
+                ACTIVE
+              </button>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Steering Velocity Scale</span>
+                <span id="stormSpeedVal" class="text-cybercyan font-bold">3.0x</span>
+              </div>
+              <input type="range" id="stormSpeedSlider" min="0.5" max="10.0" step="0.5" value="3.0" oninput="stormSpeedScale = parseFloat(this.value); document.getElementById('stormSpeedVal').innerText = this.value + 'x'" class="w-full cursor-pointer">
+            </div>
+          </div>
+
+          <!-- STREAMLINE PARTICLE PHYSICS -->
+          <div class="bg-slate-900/80 border border-white/10 p-3 space-y-2.5 rounded-md">
+            <label class="text-[10px] font-hud font-bold uppercase tracking-wider text-slate-200 block">
+              <i class="fa-solid fa-bars-staggered text-cybercyan mr-1"></i> FLOW PARTICLE DYNAMICS
+            </label>
+            
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Flow Motion Velocity</span>
+                <span id="flowSpeedVal" class="text-cybercyan font-bold">2.5x</span>
+              </div>
+              <input type="range" id="flowSpeedSlider" min="0.5" max="8.0" step="0.5" value="2.5" oninput="flowMotionScale = parseFloat(this.value); document.getElementById('flowSpeedVal').innerText = this.value + 'x'" class="w-full cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Particle Count</span>
+                <span id="particleCountVal" class="text-cybercyan font-bold">6,500</span>
+              </div>
+              <input type="range" id="particleCountSlider" min="2000" max="12000" step="500" value="6500" oninput="updateParticleCount(this.value)" class="w-full cursor-pointer">
+            </div>
+          </div>
+
+          <!-- CLEAR ALL -->
+          <button onclick="clearAllStorms()" class="w-full py-2.5 bg-red-950/80 hover:bg-red-900 border border-cyberred/50 text-cyberred font-hud text-xs font-bold transition flex items-center justify-center space-x-2 rounded-md">
+            <i class="fa-solid fa-trash"></i>
+            <span>PURGE ALL WEATHER SYSTEMS</span>
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- DYNAMIC COLOR LEGEND OVERLAY -->
+  <div class="absolute bottom-3 right-3 z-20 flex flex-col items-end pointer-events-none">
+    <div class="hud-panel px-3 py-2 pointer-events-auto flex flex-col space-y-1 w-64 font-code">
+      <div id="legendTitle" class="flex justify-between text-[9px] text-slate-400 font-bold uppercase">
+        <span id="legMin">0 km/h</span>
+        <span id="legMid1">40</span>
+        <span id="legMid2">80</span>
+        <span id="legMid3">140</span>
+        <span id="legMax">220+</span>
+      </div>
+      <div id="legendGradient" class="w-full h-2.5 grad-wind border border-white/20 rounded-sm"></div>
+      <div id="legendSub" class="flex justify-between text-[8px] text-slate-400">
+        <span id="lbl1">CALM</span>
+        <span id="lbl2">TRADES</span>
+        <span id="lbl3">WESTERLIES</span>
+        <span id="lbl4">JET STREAM</span>
+        <span id="lbl5">CAT 5</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATMOSPHERIC PROBE MODAL -->
+  <div id="soundingModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+    <div class="hud-panel max-w-md w-full p-5 text-slate-200 space-y-4 shadow-2xl relative border-cybercyan">
+      <button onclick="toggleSoundingModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      
+      <div class="flex items-center space-x-3 border-b border-cyan-500/30 pb-3">
+        <div class="w-10 h-10 rounded-lg bg-cyan-950 border border-cybercyan text-cybercyan flex items-center justify-center text-lg">
+          <i class="fa-solid fa-crosshairs"></i>
+        </div>
+        <div>
+          <h3 class="font-hud font-bold text-sm text-white uppercase tracking-wider">Atmospheric Sounding Probe</h3>
+          <p id="soundingCoord" class="text-xs text-cybercyan font-code">Location: 0.0°N, 0.0°E</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 font-code">
+        <div class="bg-slate-950 p-2.5 border border-white/10 rounded">
+          <span class="text-[9px] text-slate-400 block uppercase">Sea Surface Temp (SST)</span>
+          <span id="soundingSST" class="text-sm font-bold text-cyberred">0.0 °C</span>
+        </div>
+        <div class="bg-slate-950 p-2.5 border border-white/10 rounded">
+          <span class="text-[9px] text-slate-400 block uppercase">1000 hPa Surface Wind</span>
+          <span id="shear1000" class="text-sm font-bold text-cybergreen">0 km/h</span>
+        </div>
+        <div class="bg-slate-950 p-2.5 border border-white/10 rounded">
+          <span class="text-[9px] text-slate-400 block uppercase">500 hPa Steering Wind</span>
+          <span id="shear500" class="text-sm font-bold text-cybercyan">0 km/h</span>
+        </div>
+        <div class="bg-slate-950 p-2.5 border border-white/10 rounded">
+          <span class="text-[9px] text-slate-400 block uppercase">300 hPa Jet Stream</span>
+          <span id="shear300" class="text-sm font-bold text-cyberamber">0 km/h</span>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="toggleSoundingModal()" class="px-5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-hud text-xs rounded border border-white/20">Close Probe</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HELP & DYNAMICS MANUAL MODAL -->
+  <div id="helpModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+    <div class="hud-panel max-w-lg w-full p-6 text-slate-200 space-y-4 shadow-2xl relative border-cybercyan max-h-[85vh] overflow-y-auto">
+      <button onclick="toggleHelpModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      
+      <div class="flex items-center space-x-3 border-b border-cyan-500/30 pb-3">
+        <i class="fa-solid fa-graduation-cap text-2xl text-cybercyan"></i>
+        <div>
+          <h3 class="font-hud font-bold text-base text-white uppercase tracking-wider">Atmospheric Dynamics Manual</h3>
+          <p class="text-xs text-cybercyan font-code">WindyBox 3D Physical Operating Model</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs leading-relaxed text-slate-300">
+        <p><strong class="text-white font-hud uppercase">1. Static Globe Mechanics:</strong> The Earth planet world is stationary, allowing precise observation and manual interaction across latitude and longitude zones.</p>
+        <p><strong class="text-white font-hud uppercase">2. Sea Surface Temperature (SST):</strong> Tropical cyclones intensify over warm water (>26.5°C) and rapidly decay when crossing terrain or cold water.</p>
+        <p><strong class="text-white font-hud uppercase">3. Cyclone Steering & Beta Drift:</strong> Storm centers move under steering winds combined with poleward & westward Beta Drift generated by Coriolis gradients.</p>
+        <p><strong class="text-white font-hud uppercase">4. Atmospheric Pressure Layers:</strong> Switch between surface (1000 hPa), mid-troposphere steering (500 hPa), and upper jet streams (300 hPa) to inspect vector fields.</p>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="toggleHelpModal()" class="px-5 py-1.5 bg-cybercyan hover:bg-cyan-400 text-black font-hud text-xs font-bold rounded">Understood</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* CONSTANTS & MATH UTILITIES */
+    const GLOBE_RADIUS = 100;
+    const GRID_SIZE = 120;
+    const DEG2RAD = Math.PI / 180.0;
+    const RAD2DEG = 180.0 / Math.PI;
+
+    let scene, camera, renderer, controls, sunLight;
+    let globeMesh, cloudLayerMesh, atmosphereGlowMesh, terrainMesh, flatMesh;
+    let particleGeometry, particlePositions, particleColors, particleSystem, particlesData = [];
+    let storm3DGroup;
+
+    // Zero-allocation reusable vector
+    const tempVec3 = new THREE.Vector3();
+
+    let particleCount = 6500;
+    let flowMotionScale = 2.5;
+    let stormSpeedScale = 3.0;
+
+    let stormSystems = [];
+    let selectedSystemId = null;
+
+    let spawnerTargetPressure = 920;
+    let spawnerTargetRadius = 850;
+
+    let currentTool = 'vortex';
+    let currentViewMode = 'globe';
+    let currentAtmosphereLevel = 1000;
+    let currentOverlayLayer = 'none';
+    let currentENSOPhase = 'neutral';
+    let currentMonth = 6; // July
+
+    let simTime = 0;
+    let simSpeedMultiplier = 1.0;
+    let isPaused = false;
+    let isAudioActive = false;
+    let isSidebarMinimized = false;
+    let isStormMotionActive = true;
+
+    // Frame counter for UI throttling
+    let frameCounter = 0;
+
+    const pointerDownPos = { x: 0, y: 0 };
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    let audioCtx = null, noiseNode = null, filterNode = null, gainNode = null;
+
+    const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const seasonNames = [
+      "Winter Solstice", "Late Winter", "Vernal Equinox", "Mid Spring",
+      "Late Spring", "Summer Solstice", "Mid Summer", "Late Summer",
+      "Autumnal Equinox", "Mid Autumn", "Late Autumn", "Winter Solstice"
+    ];
+
+    function getElevationAtUV(u, v) {
+      const lat = (0.5 - v) * Math.PI;
+      const lon = (u - 0.5) * Math.PI * 2;
+      const val1 = Math.sin(lon * 2) * Math.cos(lat * 3);
+      const val2 = Math.sin(lon * 5 + 1) * Math.sin(lat * 5 + 0.5) * 0.5;
+      const val3 = Math.cos(lon * 10) * Math.sin(lat * 10) * 0.25;
+      let elev = val1 + val2 + val3;
+      return elev > 0 ? elev : 0;
+    }
+
+    function getSSTAt(latDeg, lonDeg, month, ensoPhase) {
+      const latRad = latDeg * DEG2RAD;
+      let sst = 30.0 * Math.cos(latRad) - 2.0; 
+
+      const solarDeclination = 23.5 * Math.sin(((month - 2) / 12) * Math.PI * 2);
+      sst += 3.0 * Math.exp(-Math.pow((latDeg - solarDeclination) / 15, 2));
+
+      if (lonDeg > -170 && lonDeg < -80 && Math.abs(latDeg) < 18) {
+         if (ensoPhase === 'el_nino') sst += 3.5;
+         if (ensoPhase === 'la_nina') sst -= 2.8;
+      }
+      return sst < -2 ? -2 : (sst > 34 ? 34 : sst);
+    }
+
+    // High-performance wind solver
+    function getWindAt(latDeg, lonDeg, pressureLevel = 1000, month = 6, ensoPhase = 'neutral', excludeSystemId = null) {
+      const latRad = latDeg * DEG2RAD;
+
+      const seasonalItczShift = Math.sin(((month - 2) / 12) * Math.PI * 2) * 10.0;
+      let itczLat = seasonalItczShift;
+      if (ensoPhase === 'el_nino') itczLat -= 2.0;
+      else if (ensoPhase === 'la_nina') itczLat += 2.0;
+
+      const relLat = latDeg - itczLat;
+      let u = 0.0;
+      let v = 0.0;
+
+      if (pressureLevel === 1000) {
+        const absRelLat = Math.abs(relLat);
+        const absLat = Math.abs(latDeg);
+
+        if (absRelLat < 28.0) {
+          const tradeIntensity = Math.cos((relLat / 28.0) * (Math.PI / 2));
+          let zonalTrade = -28.0 * tradeIntensity;
+          if (ensoPhase === 'la_nina' && lonDeg > -160 && lonDeg < 120) zonalTrade *= 1.45;
+          if (ensoPhase === 'el_nino' && lonDeg > -170 && lonDeg < -100) zonalTrade *= 0.35;
+          u += zonalTrade;
+          v += (latDeg > itczLat ? -18.0 : 18.0) * tradeIntensity;
+        } else if (absLat >= 28.0 && absLat < 65.0) {
+          const westFactor = Math.sin(((absLat - 28.0) / 37.0) * Math.PI);
+          u += 45.0 * westFactor;
+          v += (latDeg > 0 ? 1.0 : -1.0) * 14.0 * westFactor;
+        } else {
+          const polarFactor = Math.sin(((absLat - 65.0) / 25.0) * Math.PI);
+          u -= 22.0 * polarFactor;
+          v += (latDeg > 0 ? -1.0 : 1.0) * 12.0 * polarFactor;
+        }
+
+        const isNH = latDeg >= 0;
+        const currentSpeed = Math.hypot(u, v);
+        if (currentSpeed > 0.001) {
+          const currentAngle = Math.atan2(v, u);
+          const deflectedAngle = currentAngle + (isNH ? -0.39 : 0.39);
+          u = currentSpeed * Math.cos(deflectedAngle);
+          v = currentSpeed * Math.sin(deflectedAngle);
+        }
+
+      } else if (pressureLevel === 500) {
+        const absLat = Math.abs(latDeg);
+        if (absLat < 20.0) {
+          u -= 15.0 * Math.cos((latDeg / 20.0) * (Math.PI / 2));
+        } else {
+          u += 75.0 * Math.sin(((absLat - 15.0) / 75.0) * Math.PI);
+        }
+        const wavePhase = lonDeg * 5.0 * DEG2RAD + simTime * 0.15;
+        const waveWeight = Math.exp(-Math.pow((absLat - 45) / 18, 2));
+        v += 35.0 * Math.sin(wavePhase) * waveWeight;
+        u += 15.0 * Math.cos(wavePhase) * waveWeight;
+
+      } else if (pressureLevel === 300) {
+        const absLat = Math.abs(latDeg);
+        const stjWeight = Math.exp(-Math.pow((absLat - 30) / 9, 2));
+        u += 140.0 * stjWeight;
+        const pfjWeight = Math.exp(-Math.pow((absLat - 55) / 12, 2));
+        const wavePhase = lonDeg * 4.0 * DEG2RAD + simTime * 0.12;
+        u += (120.0 + 45.0 * Math.cos(wavePhase)) * pfjWeight;
+        v += 65.0 * Math.sin(wavePhase) * pfjWeight;
+      }
+
+      // Storm superposition
+      const sysCount = stormSystems.length;
+      for (let i = 0; i < sysCount; i++) {
+        const sys = stormSystems[i];
+        if (excludeSystemId && sys.id === excludeSystemId) continue;
+
+        const dLat = latDeg - sys.lat;
+        if (Math.abs(dLat) > sys.maxLatRadius) continue;
+
+        let dLon = lonDeg - sys.lon;
+        if (dLon > 180) dLon -= 360;
+        if (dLon < -180) dLon += 360;
+        if (Math.abs(dLon) > sys.maxLonRadius) continue;
+
+        const distKm = Math.hypot(dLat * 111.0, dLon * sys.cosLatFactor);
+
+        if (distKm < sys.radiusKm) {
+          const rNorm = Math.max(0.01, distKm / Math.max(15, sys.rMaxKm));
+          const isNH = latDeg >= 0;
+
+          if (sys.type === 'vortex' || sys.type === 'subtropical' || sys.type === 'extratropical' || sys.type === 'sink') {
+            const vTheta = sys.maxWind * (2.0 * rNorm / (1.0 + rNorm * rNorm));
+            let vInflow = -vTheta * 0.25;
+            if (sys.type === 'vortex') vInflow = -vTheta * 0.32;
+            if (sys.type === 'extratropical') vInflow = -vTheta * 0.15;
+            
+            const rotationSign = isNH ? 1.0 : -1.0;
+            const angle = Math.atan2(dLat, dLon);
+            const tangentialAngle = angle + (rotationSign * Math.PI / 2.0);
+
+            const stormU = vTheta * Math.cos(tangentialAngle) + vInflow * Math.cos(angle);
+            const stormV = vTheta * Math.sin(tangentialAngle) + vInflow * Math.sin(angle);
+
+            const stormWeight = Math.exp(-Math.pow(distKm / sys.radiusKm, sys.type === 'extratropical' ? 1.0 : 1.4));
+            u = u * (1.0 - stormWeight) + stormU * stormWeight;
+            v = v * (1.0 - stormWeight) + stormV * stormWeight;
+
+          } else if (sys.type === 'source') {
+            const vRadial = sys.maxWind * (1.0 - distKm / sys.radiusKm);
+            const angle = Math.atan2(dLat, dLon);
+            const tangentialAngle = angle - (isNH ? Math.PI / 2 : -Math.PI / 2);
+
+            u += vRadial * (0.6 * Math.cos(angle) + 0.5 * Math.cos(tangentialAngle));
+            v += vRadial * (0.6 * Math.sin(angle) + 0.5 * Math.sin(tangentialAngle));
+          }
+        }
+      }
+
+      return { u, v, speed: Math.hypot(u, v) };
+    }
+
+    function calculateMaxWindFromPressure(pressureHpa, type = 'vortex') {
+      if (type === 'source') {
+        const val = (pressureHpa - 1013) * 3.5 + 40;
+        return Math.min(110, Math.max(30, val));
+      }
+      const deltaP = Math.max(2, 1013 - pressureHpa);
+      let maxWind = 14.5 * Math.sqrt(deltaP);
+      if (type === 'vortex') maxWind *= 1.35;
+      if (type === 'subtropical') maxWind *= 1.15;
+      if (type === 'extratropical') maxWind *= 1.0; 
+      return Math.round(maxWind);
+    }
+
+    function updateStormPositions(dt) {
+      if (!isStormMotionActive || stormSystems.length === 0) return;
+
+      const dtDays = dt * simSpeedMultiplier * 0.15;
+
+      stormSystems.forEach(sys => {
+        const steeringLevel = (sys.type === 'vortex' || sys.type === 'subtropical') ? 500 : 700;
+        const steeringWind = getWindAt(sys.lat, sys.lon, steeringLevel, currentMonth, currentENSOPhase, sys.id);
+        
+        let u = steeringWind.u * 1.0;
+        let v = steeringWind.v * 1.0;
+
+        if (sys.type === 'vortex' || sys.type === 'subtropical') {
+          const isNH = sys.lat >= 0;
+          u += -10.0;
+          v += isNH ? 12.0 : -12.0;
+        } else if (sys.type === 'extratropical') {
+          u *= 1.4;
+        } else if (sys.type === 'source') {
+          u *= 0.4;
+          v *= 0.4;
+        }
+
+        const cosLat = Math.max(0.1, Math.cos(sys.lat * DEG2RAD));
+        const dLat = (v / 111.0) * dt * simSpeedMultiplier * stormSpeedScale;
+        const dLon = (u / (111.0 * cosLat)) * dt * simSpeedMultiplier * stormSpeedScale;
+
+        sys.lat += dLat;
+        sys.lon += dLon;
+
+        if (sys.lat > 82) sys.lat = 82;
+        if (sys.lat < -82) sys.lat = -82;
+        if (sys.lon > 180) sys.lon -= 360;
+        if (sys.lon < -180) sys.lon += 360;
+
+        const uNorm = (sys.lon + 180) / 360;
+        const vNorm = (90 - sys.lat) / 180;
+        const elev = getElevationAtUV(uNorm, vNorm);
+        const sst = getSSTAt(sys.lat, sys.lon, currentMonth, currentENSOPhase);
+
+        if (sys.type === 'vortex') {
+          if (elev > 0.05) {
+             sys.pressureHpa = Math.min(1013, sys.pressureHpa + dtDays * 45.0);
+             sys.radiusKm = Math.min(1800, sys.radiusKm + dtDays * 50.0);
+          } else {
+             if (sst > 26.5) {
+                let potentialP = Math.max(870, 1010 - (sst - 26.5) * 16); 
+                if (sys.pressureHpa > potentialP) {
+                   sys.pressureHpa -= dtDays * (sst - 26) * 1.8;
+                   sys.radiusKm = Math.max(250, sys.radiusKm - dtDays * 30.0);
+                } else {
+                   sys.pressureHpa += dtDays * 4.0;
+                }
+             } else {
+                sys.pressureHpa = Math.min(1013, sys.pressureHpa + dtDays * 25.0);
+                sys.radiusKm = Math.min(2200, sys.radiusKm + dtDays * 80.0);
+             }
+          }
+        } 
+        else if (sys.type === 'subtropical') {
+          if (elev > 0.05) {
+             sys.pressureHpa = Math.min(1013, sys.pressureHpa + dtDays * 35.0);
+          } else {
+             if (sst > 23.0) {
+                let potentialP = Math.max(970, 1005 - (sst - 23.0) * 8);
+                if (sys.pressureHpa > potentialP) {
+                   sys.pressureHpa -= dtDays * 12.0;
+                } else {
+                   sys.pressureHpa += dtDays * 5.0;
+                }
+             } else {
+                sys.pressureHpa = Math.min(1013, sys.pressureHpa + dtDays * 15.0);
+             }
+          }
+        } 
+        else if (sys.type === 'extratropical') {
+          const latAbs = Math.abs(sys.lat);
+          if (latAbs > 30 && latAbs < 70) {
+             let potentialP = 1010 - (latAbs - 30) * 1.6;
+             if (sys.pressureHpa > potentialP) sys.pressureHpa -= dtDays * 15.0;
+          } else {
+             sys.pressureHpa = Math.min(1013, sys.pressureHpa + dtDays * 12.0);
+          }
+          sys.radiusKm = Math.min(3000, sys.radiusKm + dtDays * 60.0);
+        }
+
+        sys.pressureHpa = Math.max(870, Math.min(1045, sys.pressureHpa));
+        sys.radiusKm = Math.max(100, Math.min(3500, sys.radiusKm));
+        sys.maxWind = calculateMaxWindFromPressure(sys.pressureHpa, sys.type);
+
+        sys.cosLatFactor = 111.0 * Math.cos(sys.lat * DEG2RAD);
+        sys.maxLatRadius = (sys.radiusKm / 111.0) * 1.05;
+        sys.maxLonRadius = (sys.radiusKm / Math.max(10, sys.cosLatFactor)) * 1.05;
+      });
+
+      const initialCount = stormSystems.length;
+      stormSystems = stormSystems.filter(sys => {
+        if (sys.type === 'source') return sys.pressureHpa > 1013;
+        return sys.pressureHpa < 1012;
+      });
+
+      if (selectedSystemId && !stormSystems.find(s => s.id === selectedSystemId)) {
+        deselectSystem();
+      }
+
+      if (stormSystems.length !== initialCount) {
+        updateActiveSystemsUI();
+        updateMinPressureReadout();
+      }
+
+      renderStormMarkers();
+
+      if (selectedSystemId) {
+        const sys = stormSystems.find(s => s.id === selectedSystemId);
+        if (sys) syncInspectorUIValues(sys);
+      }
+    }
+
+    function init3DScene() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x02040a);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
+      camera.position.set(0, 120, 320);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.4;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxDistance = 650;
+      controls.minDistance = 45;
+      
+      // Ensure Earth world does NOT spin automatically
+      controls.autoRotate = false;
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+      scene.add(ambientLight);
+
+      sunLight = new THREE.DirectionalLight(0xfff8ee, 1.8);
+      sunLight.position.set(280, 160, 180);
+      scene.add(sunLight);
+
+      storm3DGroup = new THREE.Group();
+      scene.add(storm3DGroup);
+
+      build3DGlobe();
+      build3DTerrain();
+      build2DFlat();
+      init3DParticles();
+
+      terrainMesh.visible = false;
+      flatMesh.visible = false;
+
+      window.addEventListener('resize', onWindowResize);
+      renderer.domElement.addEventListener('pointerdown', onPointerDown);
+      renderer.domElement.addEventListener('pointerup', onPointerUp);
+
+      spawnDefaultGlobalSystems();
+      updateSeasonalSunPosition();
+      updateActiveSystemsUI();
+      if (stormSystems.length > 0) selectSystem(stormSystems[0].id);
+
+      requestAnimationFrame(animate);
+    }
+
+    function build3DGlobe() {
+      const textureLoader = new THREE.TextureLoader();
+
+      const earthMap = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg');
+      const bumpMap = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_normal_2048.jpg');
+      const specMap = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_specular_2048.jpg');
+
+      const earthGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 128, 128);
+      const earthMat = new THREE.MeshPhongMaterial({
+        map: earthMap,
+        normalMap: bumpMap,
+        normalScale: new THREE.Vector2(1.1, 1.1),
+        specularMap: specMap,
+        specular: new THREE.Color(0x333333),
+        shininess: 20
+      });
+      globeMesh = new THREE.Mesh(earthGeo, earthMat);
+      scene.add(globeMesh);
+
+      const cloudMap = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_clouds_1024.png');
+      const cloudGeo = new THREE.SphereGeometry(GLOBE_RADIUS + 1.2, 128, 128);
+      const cloudMat = new THREE.MeshStandardMaterial({
+        map: cloudMap,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.NormalBlending
+      });
+      cloudLayerMesh = new THREE.Mesh(cloudGeo, cloudMat);
+      scene.add(cloudLayerMesh);
+
+      const glowGeo = new THREE.SphereGeometry(GLOBE_RADIUS + 4.5, 64, 64);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.12
+      });
+      atmosphereGlowMesh = new THREE.Mesh(glowGeo, glowMat);
+      scene.add(atmosphereGlowMesh);
+    }
+
+    function build3DTerrain() {
+      const geo = new THREE.PlaneGeometry(300, 150, GRID_SIZE - 1, GRID_SIZE - 1);
+      geo.rotateX(-Math.PI / 2);
+
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const u = (pos.getX(i) + 150) / 300;
+        const v = (pos.getZ(i) + 75) / 150;
+        const elev = getElevationAtUV(u, v);
+        pos.setY(i, elev * 22.0);
+      }
+      geo.computeVertexNormals();
+
+      const mat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+      terrainMesh = new THREE.Mesh(geo, mat);
+      scene.add(terrainMesh);
+    }
+
+    function build2DFlat() {
+      const geo = new THREE.PlaneGeometry(320, 160);
+      const textureLoader = new THREE.TextureLoader();
+      const map = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg');
+      const mat = new THREE.MeshBasicMaterial({ map: map });
+      flatMesh = new THREE.Mesh(geo, mat);
+      flatMesh.position.z = -10;
+      scene.add(flatMesh);
+    }
+
+    function init3DParticles() {
+      particleGeometry = new THREE.BufferGeometry();
+      particlePositions = new Float32Array(particleCount * 3);
+      particleColors = new Float32Array(particleCount * 3);
+
+      particlesData = [];
+
+      for (let i = 0; i < particleCount; i++) {
+        const lat = (Math.random() - 0.5) * 170;
+        const lon = (Math.random() - 0.5) * 360;
+        const age = Math.random() * 120;
+
+        particlesData.push({ lat, lon, age, maxAge: 80 + Math.random() * 60, speed: 0 });
+
+        latLonToVector3Fast(lat, lon, GLOBE_RADIUS + 1.8, tempVec3);
+        particlePositions[i * 3] = tempVec3.x;
+        particlePositions[i * 3 + 1] = tempVec3.y;
+        particlePositions[i * 3 + 2] = tempVec3.z;
+
+        particleColors[i * 3] = 0.0;
+        particleColors[i * 3 + 1] = 0.95;
+        particleColors[i * 3 + 2] = 1.0;
+      }
+
+      particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+      particleGeometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+      const pMat = new THREE.PointsMaterial({
+        size: 2.2,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending
+      });
+
+      particleSystem = new THREE.Points(particleGeometry, pMat);
+      scene.add(particleSystem);
+    }
+
+    function latLonToVector3Fast(lat, lon, radius, targetVec) {
+      const phi = (90.0 - lat) * DEG2RAD;
+      const theta = (lon + 180.0) * DEG2RAD;
+
+      targetVec.x = -(radius * Math.sin(phi) * Math.cos(theta));
+      targetVec.z = radius * Math.sin(phi) * Math.sin(theta);
+      targetVec.y = radius * Math.cos(phi);
+      return targetVec;
+    }
+
+    function vector3ToLatLon(point) {
+      tempVec3.copy(point).normalize();
+      const lat = 90.0 - (Math.acos(tempVec3.y) * RAD2DEG);
+      let thetaDeg = (Math.atan2(tempVec3.z, -tempVec3.x) * RAD2DEG);
+      let lon = thetaDeg - 180.0;
+      if (lon < -180) lon += 360;
+      if (lon > 180) lon -= 360;
+      return { lat, lon };
+    }
+
+    function updateParticles(dt) {
+      const positions = particleGeometry.attributes.position.array;
+      const colors = particleGeometry.attributes.color.array;
+
+      let maxSpeedInFrame = 0.0;
+      const stepScale = dt * simSpeedMultiplier * flowMotionScale;
+      const levelAlt = currentAtmosphereLevel === 300 ? 5.5 : (currentAtmosphereLevel === 500 ? 3.2 : 1.5);
+
+      for (let i = 0; i < particleCount; i++) {
+        const p = particlesData[i];
+        p.age += dt * simSpeedMultiplier * (10.0 + flowMotionScale * 2.0);
+
+        if (p.age > p.maxAge) {
+          p.lat = (Math.random() - 0.5) * 170;
+          p.lon = (Math.random() - 0.5) * 360;
+          p.age = 0;
+        }
+
+        const w1 = getWindAt(p.lat, p.lon, currentAtmosphereLevel, currentMonth, currentENSOPhase);
+        p.speed = w1.speed;
+        if (p.speed > maxSpeedInFrame) maxSpeedInFrame = p.speed;
+
+        const cosLat1 = Math.max(0.08, Math.cos(p.lat * DEG2RAD));
+        const midLat = p.lat + (w1.v / 111.0) * stepScale * 0.5;
+        const midLon = p.lon + (w1.u / (111.0 * cosLat1)) * stepScale * 0.5;
+
+        const w2 = getWindAt(midLat, midLon, currentAtmosphereLevel, currentMonth, currentENSOPhase);
+        const cosLat2 = Math.max(0.08, Math.cos(midLat * DEG2RAD));
+
+        p.lat += (w2.v / 111.0) * stepScale;
+        p.lon += (w2.u / (111.0 * cosLat2)) * stepScale;
+
+        if (p.lat > 85) p.lat = 85;
+        if (p.lat < -85) p.lat = -85;
+        if (p.lon > 180) p.lon -= 360;
+        if (p.lon < -180) p.lon += 360;
+
+        if (currentViewMode === 'globe') {
+          latLonToVector3Fast(p.lat, p.lon, GLOBE_RADIUS + levelAlt, tempVec3);
+        } else if (currentViewMode === 'terrain') {
+          const x = (p.lon / 180) * 150;
+          const z = (-p.lat / 90) * 75;
+          const u = (p.lon + 180) / 360;
+          const v = (90 - p.lat) / 180;
+          const elev = getElevationAtUV(u, v);
+          tempVec3.set(x, elev * 22.0 + 2.0, z);
+        } else {
+          const x = (p.lon / 180) * 160;
+          const y = (p.lat / 90) * 80;
+          tempVec3.set(x, y, 2.0);
+        }
+
+        const idx = i * 3;
+        positions[idx] = tempVec3.x;
+        positions[idx + 1] = tempVec3.y;
+        positions[idx + 2] = tempVec3.z;
+
+        const rgb = getParticleRGB(p);
+        colors[idx] = rgb.r;
+        colors[idx + 1] = rgb.g;
+        colors[idx + 2] = rgb.b;
+      }
+
+      particleGeometry.attributes.position.needsUpdate = true;
+      particleGeometry.attributes.color.needsUpdate = true;
+
+      frameCounter++;
+      if (frameCounter % 8 === 0) {
+        const readoutEl = document.getElementById('speedReadout');
+        if (readoutEl) readoutEl.innerText = `${maxSpeedInFrame.toFixed(1)} km/h`;
+        
+        if (isAudioActive && gainNode) {
+          const normGain = Math.min(1.0, maxSpeedInFrame / 200.0);
+          gainNode.gain.setTargetAtTime(normGain * 0.25, audioCtx.currentTime, 0.1);
+          filterNode.frequency.setTargetAtTime(200 + normGain * 1200, audioCtx.currentTime, 0.1);
+        }
+      }
+    }
+
+    function getParticleRGB(p) {
+      if (currentOverlayLayer === 'sst') {
+        const sst = getSSTAt(p.lat, p.lon, currentMonth, currentENSOPhase);
+        const norm = Math.min(1.0, Math.max(0.0, (sst + 2.0) / 36.0));
+        if (norm < 0.2) return { r: 0.1, g: 0.2, b: 0.8 };
+        if (norm < 0.5) return { r: 0.0, g: 1.0, b: 0.6 };
+        if (norm < 0.75) return { r: 1.0, g: 0.7, b: 0.0 };
+        return { r: 1.0, g: 0.2, b: 0.4 };
+      }
+      else if (currentOverlayLayer === 'radar') {
+        let dbz = Math.abs(p.lat) < 10 ? 20 : 0;
+        const sysCount = stormSystems.length;
+        for (let i = 0; i < sysCount; i++) {
+          const s = stormSystems[i];
+          const dist = Math.hypot(p.lat - s.lat, p.lon - s.lon) * 111;
+          if (dist < s.radiusKm) dbz = Math.max(dbz, (1 - dist / s.radiusKm) * 65);
+        }
+        const norm = Math.min(1.0, dbz / 65.0);
+        if (norm < 0.1) return { r: 0.05, g: 0.15, b: 0.2 };
+        if (norm < 0.4) return { r: 0.0, g: 1.0, b: 0.5 };
+        if (norm < 0.7) return { r: 1.0, g: 0.8, b: 0.0 };
+        return { r: 1.0, g: 0.2, b: 0.9 };
+      }
+      else if (currentOverlayLayer === 'cape') {
+        const sst = getSSTAt(p.lat, p.lon, currentMonth, currentENSOPhase);
+        let cape = Math.max(0, (sst - 20) * 130);
+        const norm = Math.min(1.0, cape / 3800.0);
+        if (norm < 0.2) return { r: 0.1, g: 0.15, b: 0.3 };
+        if (norm < 0.5) return { r: 0.5, g: 0.2, b: 0.8 };
+        if (norm < 0.8) return { r: 0.9, g: 0.2, b: 0.6 };
+        return { r: 1.0, g: 0.3, b: 0.3 };
+      }
+      else {
+        const s = Math.min(1.0, Math.max(0.0, p.speed / 220.0));
+        if (s < 0.15) return { r: 0.1, g: 0.3, b: 0.8 };
+        if (s < 0.35) return { r: 0.0, g: 0.95, b: 1.0 };
+        if (s < 0.6) return { r: 0.0, g: 1.0, b: 0.6 };
+        if (s < 0.82) return { r: 1.0, g: 0.7, b: 0.0 };
+        return { r: 1.0, g: 0.2, b: 0.4 };
+      }
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('[id^="tabContent-"]').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('[id^="tabBtn-"]').forEach(btn => btn.classList.remove('active'));
+
+      const targetContent = document.getElementById(`tabContent-${tabName}`);
+      const targetBtn = document.getElementById(`tabBtn-${tabName}`);
+
+      if (targetContent) targetContent.classList.remove('hidden');
+      if (targetBtn) targetBtn.classList.add('active');
+    }
+
+    function toggleSidebar() {
+      isSidebarMinimized = !isSidebarMinimized;
+      const sidebar = document.getElementById('sidebar-panel');
+      const expandBtn = document.getElementById('expandSidebarBtn');
+      if (sidebar && expandBtn) {
+        if (isSidebarMinimized) {
+          sidebar.classList.add('minimized');
+          expandBtn.classList.remove('hidden');
+        } else {
+          sidebar.classList.remove('minimized');
+          expandBtn.classList.add('hidden');
+        }
+      }
+    }
+
+    function toggleStormMotion() {
+      isStormMotionActive = !isStormMotionActive;
+      const btn = document.getElementById('stormMotionBtn');
+      if (btn) {
+        btn.innerText = isStormMotionActive ? 'ACTIVE' : 'PAUSED';
+        btn.className = isStormMotionActive 
+          ? 'px-2.5 py-1 text-[10px] font-code rounded bg-cybergreen text-black font-bold transition hover:bg-emerald-400' 
+          : 'px-2.5 py-1 text-[10px] font-code rounded bg-slate-800 text-slate-400 font-bold transition hover:bg-slate-700 border border-white/10';
+      }
+    }
+
+    function spawnDefaultGlobalSystems() {
+      stormSystems = [
+        { id: 101, name: 'Super Typhoon Ragasa', type: 'vortex', lat: 18.5, lon: 132.0, radiusKm: 950, rMaxKm: 45, pressureHpa: 910, maxWind: 220 },
+        { id: 102, name: 'Aleutian Frontal Low', type: 'extratropical', lat: 48.0, lon: -165.0, radiusKm: 1600, rMaxKm: 120, pressureHpa: 965, maxWind: 110 }
+      ];
+      stormSystems.forEach(sys => {
+        sys.cosLatFactor = 111.0 * Math.cos(sys.lat * DEG2RAD);
+        sys.maxLatRadius = (sys.radiusKm / 111.0) * 1.05;
+        sys.maxLonRadius = (sys.radiusKm / Math.max(10, sys.cosLatFactor)) * 1.05;
+      });
+      renderStormMarkers();
+      updateMinPressureReadout();
+    }
+
+    function updateSpawnerSettings() {
+      spawnerTargetPressure = parseInt(document.getElementById('spawnerPressureSlider').value);
+      spawnerTargetRadius = parseInt(document.getElementById('spawnerRadiusSlider').value);
+      document.getElementById('spawnerPressureVal').innerText = `${spawnerTargetPressure} hPa`;
+      document.getElementById('spawnerRadiusVal').innerText = `${spawnerTargetRadius} km`;
+    }
+
+    function setTool(toolName) {
+      currentTool = toolName;
+      document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`tool-${toolName}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const toolNames = {
+        'vortex': 'TROPICAL CYCLONE',
+        'subtropical': 'SUBTROPICAL LOW',
+        'extratropical': 'FRONTAL LOW',
+        'sink': 'LOW CENTER (L)',
+        'source': 'HIGH CENTER (H)',
+        'inspect': 'PROBE TOOL'
+      };
+      const label = document.getElementById('activeToolLabel');
+      if (label) label.innerText = toolNames[toolName] || toolName.toUpperCase();
+
+      const pSlider = document.getElementById('spawnerPressureSlider');
+      if (pSlider) {
+        if (toolName === 'source') {
+          if (parseInt(pSlider.value) < 1013) {
+            pSlider.value = 1025;
+            updateSpawnerSettings();
+          }
+        } else if (['vortex', 'subtropical', 'extratropical', 'sink'].includes(toolName)) {
+          if (parseInt(pSlider.value) >= 1013) {
+            pSlider.value = 920;
+            updateSpawnerSettings();
+          }
+        }
+      }
+    }
+
+    function spawnSystemAtCenter() {
+      spawnSystemAt(15.0, 135.0, currentTool);
+    }
+
+    function spawnRandomSystem() {
+      const randLat = (Math.random() - 0.2) * 50;
+      const randLon = (Math.random() - 0.5) * 300;
+      const types = ['vortex', 'subtropical', 'extratropical', 'sink', 'source'];
+      const randType = types[Math.floor(Math.random() * types.length)];
+      spawnSystemAt(randLat, randLon, randType);
+    }
+
+    function spawnSystemAt(lat, lon, toolType) {
+      const id = Date.now();
+      let sysP = spawnerTargetPressure;
+      if (toolType === 'source' && sysP < 1013) sysP = 1025;
+      
+      const maxWind = calculateMaxWindFromPressure(sysP, toolType);
+      
+      let sysName = `System ${stormSystems.length + 1}`;
+      if (toolType === 'vortex') sysName = `Tropical Cyclone`;
+      else if (toolType === 'subtropical') sysName = `Subtropical Low`;
+      else if (toolType === 'extratropical') sysName = `Frontal Low`;
+      else if (toolType === 'sink') sysName = `Low Pressure`;
+      else if (toolType === 'source') sysName = `High Center`;
+
+      const cosLatFactor = 111.0 * Math.cos(lat * DEG2RAD);
+
+      const newSys = {
+        id,
+        name: sysName,
+        type: toolType,
+        lat,
+        lon,
+        radiusKm: spawnerTargetRadius,
+        rMaxKm: Math.max(25, spawnerTargetRadius * 0.1),
+        pressureHpa: sysP,
+        maxWind,
+        cosLatFactor,
+        maxLatRadius: (spawnerTargetRadius / 111.0) * 1.05,
+        maxLonRadius: (spawnerTargetRadius / Math.max(10, cosLatFactor)) * 1.05
+      };
+
+      stormSystems.push(newSys);
+      renderStormMarkers();
+      selectSystem(id);
+      updateMinPressureReadout();
+      updateActiveSystemsUI();
+      focusCameraOnSystem(id);
+    }
+
+    function setAtmosphereLevel(level) {
+      currentAtmosphereLevel = level;
+      document.querySelectorAll('.level-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`levelBtn-${level}`);
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    function setOverlayLayer(layerName) {
+      currentOverlayLayer = layerName;
+      document.querySelectorAll('[id^="layerBtn-"]').forEach(btn => {
+        btn.className = 'p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-2 rounded';
+      });
+      const activeBtn = document.getElementById(`layerBtn-${layerName}`);
+      if (activeBtn) activeBtn.className = 'p-2 bg-cybercyan text-black font-hud font-bold flex items-center gap-2 rounded';
+
+      const legendGrad = document.getElementById('legendGradient');
+      const minL = document.getElementById('legMin');
+      const maxL = document.getElementById('legMax');
+      const m1 = document.getElementById('legMid1');
+      const m2 = document.getElementById('legMid2');
+      const m3 = document.getElementById('legMid3');
+
+      if (legendGrad) {
+        if (layerName === 'sst') {
+          legendGrad.className = 'w-full h-2.5 grad-sst border border-white/20 rounded-sm';
+          minL.innerText = '-2°C'; m1.innerText = '12°'; m2.innerText = '22°'; m3.innerText = '28°'; maxL.innerText = '34°C';
+        } else if (layerName === 'radar') {
+          legendGrad.className = 'w-full h-2.5 grad-radar border border-white/20 rounded-sm';
+          minL.innerText = '0 dBZ'; m1.innerText = '15'; m2.innerText = '30'; m3.innerText = '45'; maxL.innerText = '65+';
+        } else if (layerName === 'cape') {
+          legendGrad.className = 'w-full h-2.5 grad-cape border border-white/20 rounded-sm';
+          minL.innerText = '0 J/kg'; m1.innerText = '800'; m2.innerText = '1800'; m3.innerText = '2800'; maxL.innerText = '3800+';
+        } else {
+          legendGrad.className = 'w-full h-2.5 grad-wind border border-white/20 rounded-sm';
+          minL.innerText = '0 km/h'; m1.innerText = '40'; m2.innerText = '80'; m3.innerText = '140'; maxL.innerText = '220+';
+        }
+      }
+    }
+
+    function setENSOPhase(phase) {
+      currentENSOPhase = phase;
+      document.querySelectorAll('[id^="ensoBtn-"]').forEach(btn => {
+        btn.className = 'p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-white/10 rounded';
+      });
+      const activeBtn = document.getElementById(`ensoBtn-${phase}`);
+      if (activeBtn) activeBtn.className = 'p-2 bg-cybercyan text-black font-hud font-bold rounded';
+
+      const desc = document.getElementById('ensoDescription');
+      if (desc) {
+        if (phase === 'el_nino') {
+          desc.innerText = "El Niño: Warm SST anomaly (+3.5°C). Trade winds weaken in East Pacific.";
+        } else if (phase === 'la_nina') {
+          desc.innerText = "La Niña: Cool SST anomaly (-2.8°C). Trade winds intensify across West Pacific.";
+        } else {
+          desc.innerText = "Neutral: Normal Pacific trade winds and neutral SST gradient.";
+        }
+      }
+    }
+
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      document.querySelectorAll('[id^="viewBtn-"]').forEach(btn => {
+        btn.className = 'px-3 py-1.5 text-xs font-hud font-semibold text-slate-300 hover:text-white hover:bg-white/10 rounded transition';
+      });
+      const activeBtn = document.getElementById(`viewBtn-${mode}`);
+      if (activeBtn) activeBtn.className = 'px-3 py-1.5 text-xs font-hud font-bold bg-cybercyan text-black rounded transition';
+
+      globeMesh.visible = (mode === 'globe');
+      cloudLayerMesh.visible = (mode === 'globe');
+      atmosphereGlowMesh.visible = (mode === 'globe');
+      terrainMesh.visible = (mode === 'terrain');
+      flatMesh.visible = (mode === 'flat');
+
+      if (mode === 'globe') camera.position.set(0, 120, 320);
+      else if (mode === 'terrain') camera.position.set(0, 180, 220);
+      else camera.position.set(0, 0, 260);
+
+      controls.reset();
+      renderStormMarkers();
+    }
+
+    function onMonthChange(val) {
+      currentMonth = parseInt(val);
+      document.getElementById('dateReadout').innerText = `2026 - ${monthNames[currentMonth]} 15`;
+      document.getElementById('seasonBadge').innerText = seasonNames[currentMonth];
+      updateSeasonalSunPosition();
+    }
+
+    function updateSeasonalSunPosition() {
+      const declinationRad = (23.44 * Math.sin(((currentMonth - 2) / 12) * Math.PI * 2)) * DEG2RAD;
+      sunLight.position.set(280 * Math.cos(declinationRad), 280 * Math.sin(declinationRad), 180);
+    }
+
+    function renderStormMarkers() {
+      while (storm3DGroup.children.length > 0) {
+        const child = storm3DGroup.children[0];
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+        storm3DGroup.remove(child);
+      }
+
+      stormSystems.forEach(sys => {
+        let pos, normal;
+        if (currentViewMode === 'globe') {
+          latLonToVector3Fast(sys.lat, sys.lon, GLOBE_RADIUS + 2.2, tempVec3);
+          pos = tempVec3.clone();
+          normal = pos.clone().normalize();
+        } else if (currentViewMode === 'terrain') {
+          const u = (sys.lon + 180) / 360;
+          const v = (90 - sys.lat) / 180;
+          const elev = getElevationAtUV(u, v);
+          pos = new THREE.Vector3((sys.lon / 180) * 150, elev * 22.0 + 3.0, (-sys.lat / 90) * 75);
+          normal = new THREE.Vector3(0, 1, 0);
+        } else {
+          pos = new THREE.Vector3((sys.lon / 180) * 160, (sys.lat / 90) * 80, 2.5);
+          normal = new THREE.Vector3(0, 0, 1);
+        }
+
+        const outerRadius = Math.max(3.5, sys.radiusKm / 100.0);
+        const isSelected = (sys.id === selectedSystemId);
+
+        const ringGeo = new THREE.RingGeometry(outerRadius * 0.7, outerRadius, 32);
+        
+        let colorHex = 0x00ff9d;
+        if (sys.type === 'vortex') colorHex = 0xff3366;
+        else if (sys.type === 'subtropical') colorHex = 0xf97316;
+        else if (sys.type === 'extratropical') colorHex = 0xffb700;
+        else if (sys.type === 'source') colorHex = 0x3b82f6;
+        
+        if (isSelected) colorHex = 0x00f0ff;
+
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: colorHex,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: isSelected ? 0.95 : 0.65
+        });
+
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.position.copy(pos);
+        
+        if (currentViewMode === 'globe') {
+          ringMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+        } else {
+          ringMesh.rotation.x = -Math.PI / 2;
+          if (currentViewMode === 'flat') ringMesh.rotation.x = 0;
+        }
+
+        ringMesh.userData = { systemId: sys.id };
+        storm3DGroup.add(ringMesh);
+
+        if (sys.type === 'vortex' || sys.type === 'extratropical' || sys.type === 'subtropical') {
+          const eyeRadius = Math.max(0.6, (sys.rMaxKm / 100.0));
+          const eyeGeo = new THREE.RingGeometry(eyeRadius * 0.7, eyeRadius, 16);
+          const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+          const eyeMesh = new THREE.Mesh(eyeGeo, eyeMat);
+          eyeMesh.position.copy(pos);
+          
+          if (currentViewMode === 'globe') eyeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+          else {
+            eyeMesh.rotation.x = -Math.PI / 2;
+            if (currentViewMode === 'flat') eyeMesh.rotation.x = 0;
+          }
+          storm3DGroup.add(eyeMesh);
+        }
+      });
+      updateActiveSystemsUI();
+    }
+
+    function onPointerDown(event) {
+      if (isSidebarMinimized && event.clientX < window.innerWidth * 0.25) return;
+      pointerDownPos.x = event.clientX;
+      pointerDownPos.y = event.clientY;
+    }
+
+    function onPointerUp(event) {
+      if (Math.hypot(event.clientX - pointerDownPos.x, event.clientY - pointerDownPos.y) > 6) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      let targetMeshes = [globeMesh];
+      if (currentViewMode === 'terrain') targetMeshes = [terrainMesh];
+      if (currentViewMode === 'flat') targetMeshes = [flatMesh];
+
+      const intersects = raycaster.intersectObjects(targetMeshes);
+      if (intersects.length > 0) {
+        const p = intersects[0].point;
+        let lat, lon;
+
+        if (currentViewMode === 'globe') {
+          const ll = vector3ToLatLon(p);
+          lat = ll.lat;
+          lon = ll.lon;
+        } else if (currentViewMode === 'terrain') {
+          lon = (p.x / 150) * 180;
+          lat = -(p.z / 75) * 90;
+        } else {
+          lon = (p.x / 160) * 180;
+          lat = (p.y / 80) * 90;
+        }
+
+        handleMapInteraction(lat, lon);
+      }
+    }
+
+    function handleMapInteraction(lat, lon) {
+      if (currentTool === 'inspect') {
+        const sstVal = getSSTAt(lat, lon, currentMonth, currentENSOPhase).toFixed(1);
+        const w1000 = getWindAt(lat, lon, 1000, currentMonth, currentENSOPhase).speed.toFixed(0);
+        const w500 = getWindAt(lat, lon, 500, currentMonth, currentENSOPhase).speed.toFixed(0);
+        const w300 = getWindAt(lat, lon, 300, currentMonth, currentENSOPhase).speed.toFixed(0);
+
+        document.getElementById('soundingCoord').innerText = `Loc: ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`;
+        document.getElementById('soundingSST').innerText = `${sstVal} °C`;
+        document.getElementById('shear1000').innerText = `${w1000} km/h`;
+        document.getElementById('shear500').innerText = `${w500} km/h`;
+        document.getElementById('shear300').innerText = `${w300} km/h`;
+
+        document.getElementById('soundingModal').classList.remove('hidden');
+        return;
+      }
+
+      let clickedSystem = null;
+      let minAngularDist = 12.0;
+
+      stormSystems.forEach(sys => {
+        const dLat = lat - sys.lat;
+        let dLon = lon - sys.lon;
+        if (dLon > 180) dLon -= 360;
+        if (dLon < -180) dLon += 360;
+        const distDeg = Math.hypot(dLat, dLon);
+        if (distDeg < minAngularDist) {
+          minAngularDist = distDeg;
+          clickedSystem = sys;
+        }
+      });
+
+      if (clickedSystem) {
+        selectSystem(clickedSystem.id);
+        return;
+      }
+
+      if (['vortex', 'subtropical', 'extratropical', 'sink', 'source'].includes(currentTool)) {
+        spawnSystemAt(lat, lon, currentTool);
+      }
+    }
+
+    function selectSystem(id) {
+      selectedSystemId = id;
+      renderStormMarkers();
+      
+      const content = document.getElementById('inspectorContent');
+      const sys = stormSystems.find(s => s.id === id);
+      if (!sys) return;
+
+      document.getElementById('inspectorTitle').innerText = sys.name.toUpperCase();
+      
+      content.innerHTML = `
+        <div class="space-y-2 text-xs font-code">
+          <div>
+            <label class="text-[9px] text-slate-400 uppercase block font-bold mb-0.5">System Identifier Name</label>
+            <input id="inspectorNameInput" type="text" value="${sys.name}" oninput="updateSelectedSystem()" class="w-full bg-slate-900 border border-white/20 text-cybercyan px-2 py-1 rounded">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="flex justify-between text-[9px] text-slate-400 mb-0.5">
+                <span>Central Pressure</span>
+                <span id="inspPressureVal" class="text-cybergreen font-bold">${Math.round(sys.pressureHpa)} hPa</span>
+              </div>
+              <input id="inspectorPInput" type="range" min="880" max="1040" step="1" value="${Math.round(sys.pressureHpa)}" oninput="updateSelectedSystem()" class="w-full cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[9px] text-slate-400 mb-0.5">
+                <span>Storm Radius</span>
+                <span id="inspRadiusVal" class="text-cybergreen font-bold">${Math.round(sys.radiusKm)} km</span>
+              </div>
+              <input id="inspectorRadiusInput" type="range" min="150" max="3000" step="25" value="${Math.round(sys.radiusKm)}" oninput="updateSelectedSystem()" class="w-full cursor-pointer">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[9px] text-slate-400 uppercase block font-bold mb-0.5">Latitude (°N/S)</label>
+              <input id="inspectorLatInput" type="number" step="0.5" value="${sys.lat.toFixed(1)}" oninput="updateSelectedSystem()" class="w-full bg-slate-900 border border-white/20 text-slate-200 px-2 py-1 rounded">
+            </div>
+            <div>
+              <label class="text-[9px] text-slate-400 uppercase block font-bold mb-0.5">Longitude (°E/W)</label>
+              <input id="inspectorLonInput" type="number" step="0.5" value="${sys.lon.toFixed(1)}" oninput="updateSelectedSystem()" class="w-full bg-slate-900 border border-white/20 text-slate-200 px-2 py-1 rounded">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[9px] text-slate-400 uppercase block font-bold mb-0.5">System Type</label>
+              <select id="inspectorTypeSelect" onchange="updateSelectedSystem()" class="w-full bg-slate-900 border border-white/20 text-white px-2 py-1 rounded">
+                <option value="vortex" ${sys.type === 'vortex' ? 'selected' : ''}>Tropical Cyclone</option>
+                <option value="subtropical" ${sys.type === 'subtropical' ? 'selected' : ''}>Subtropical Cyclone</option>
+                <option value="extratropical" ${sys.type === 'extratropical' ? 'selected' : ''}>Frontal Cyclone</option>
+                <option value="sink" ${sys.type === 'sink' ? 'selected' : ''}>Low Pressure (L)</option>
+                <option value="source" ${sys.type === 'source' ? 'selected' : ''}>High Pressure (H)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[9px] text-slate-400 uppercase block font-bold mb-0.5">Calculated V_max</label>
+              <div id="inspectorWindDisp" class="bg-slate-900 border border-white/20 text-cyberamber font-bold px-2 py-1 rounded text-center">
+                ${sys.maxWind} km/h
+              </div>
+            </div>
+          </div>
+
+          <div class="flex space-x-2 pt-1">
+            <button onclick="focusCameraOnSystem(${sys.id})" class="w-1/2 py-1.5 text-[10px] uppercase font-hud font-bold text-cybercyan border border-cybercyan/50 hover:bg-cyan-950 transition rounded">Center Camera</button>
+            <button onclick="removeSelectedSystem()" class="w-1/2 py-1.5 text-[10px] uppercase font-hud font-bold text-cyberred border border-cyberred/50 hover:bg-red-950 transition rounded">Delete System</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function syncInspectorUIValues(sys) {
+      const pVal = document.getElementById('inspPressureVal');
+      const rVal = document.getElementById('inspRadiusVal');
+      const windDisp = document.getElementById('inspectorWindDisp');
+      if (pVal) pVal.innerText = `${Math.round(sys.pressureHpa)} hPa`;
+      if (rVal) rVal.innerText = `${Math.round(sys.radiusKm)} km`;
+      if (windDisp) windDisp.innerText = `${sys.maxWind} km/h`;
+    }
+
+    function updateSelectedSystem() {
+      if (!selectedSystemId) return;
+      const sys = stormSystems.find(s => s.id === selectedSystemId);
+      if (!sys) return;
+
+      const nameInput = document.getElementById('inspectorNameInput');
+      const pInput = document.getElementById('inspectorPInput');
+      const rInput = document.getElementById('inspectorRadiusInput');
+      const latInput = document.getElementById('inspectorLatInput');
+      const lonInput = document.getElementById('inspectorLonInput');
+      const typeSelect = document.getElementById('inspectorTypeSelect');
+
+      if (nameInput) sys.name = nameInput.value;
+      if (pInput) sys.pressureHpa = parseFloat(pInput.value);
+      if (rInput) sys.radiusKm = parseFloat(rInput.value);
+      if (latInput) sys.lat = parseFloat(latInput.value);
+      if (lonInput) sys.lon = parseFloat(lonInput.value);
+      if (typeSelect) sys.type = typeSelect.value;
+
+      sys.maxWind = calculateMaxWindFromPressure(sys.pressureHpa, sys.type);
+      sys.cosLatFactor = 111.0 * Math.cos(sys.lat * DEG2RAD);
+      sys.maxLatRadius = (sys.radiusKm / 111.0) * 1.05;
+      sys.maxLonRadius = (sys.radiusKm / Math.max(10, sys.cosLatFactor)) * 1.05;
+
+      syncInspectorUIValues(sys);
+      renderStormMarkers();
+      updateMinPressureReadout();
+      updateActiveSystemsUI();
+    }
+
+    function deselectSystem() {
+      selectedSystemId = null;
+      document.getElementById('inspectorTitle').innerText = 'SYSTEM INSPECTOR';
+      document.getElementById('inspectorContent').innerHTML = `
+        <div class="text-center py-4 text-slate-500 font-code text-xs">
+          <i class="fa-solid fa-crosshairs text-base mb-1 block"></i>
+          Select a storm system or spawn a new one to inspect parameters.
+        </div>
+      `;
+      renderStormMarkers();
+    }
+
+    function removeSelectedSystem() {
+      if (!selectedSystemId) return;
+      stormSystems = stormSystems.filter(s => s.id !== selectedSystemId);
+      deselectSystem();
+      renderStormMarkers();
+      updateMinPressureReadout();
+      updateActiveSystemsUI();
+    }
+
+    function clearAllStorms() {
+      stormSystems = [];
+      deselectSystem();
+      renderStormMarkers();
+      updateMinPressureReadout();
+      updateActiveSystemsUI();
+    }
+
+    function focusCameraOnSystem(id) {
+      const sys = stormSystems.find(s => s.id === id);
+      if (!sys) return;
+
+      if (currentViewMode === 'globe') {
+        latLonToVector3Fast(sys.lat, sys.lon, GLOBE_RADIUS + 160, tempVec3);
+        camera.position.copy(tempVec3);
+      } else if (currentViewMode === 'terrain') {
+        camera.position.set((sys.lon / 180) * 150, 100, (-sys.lat / 90) * 75 + 100);
+      } else {
+        camera.position.set((sys.lon / 180) * 160, (sys.lat / 90) * 80, 180);
+      }
+      controls.target.set(0, 0, 0);
+    }
+
+    function updateActiveSystemsUI() {
+      const listEl = document.getElementById('activeSystemsList');
+      const countEl = document.getElementById('activeCountBadge');
+      const readoutCount = document.getElementById('systemCountReadout');
+
+      if (countEl) countEl.innerText = `${stormSystems.length} Systems`;
+      if (readoutCount) readoutCount.innerText = `${stormSystems.length} Active`;
+
+      if (!listEl) return;
+
+      if (stormSystems.length === 0) {
+        listEl.innerHTML = `<p class="text-[10px] text-slate-500 font-code text-center py-2">No active storm systems.</p>`;
+        return;
+      }
+
+      listEl.innerHTML = stormSystems.map(sys => {
+        const isSelected = (sys.id === selectedSystemId);
+        let badgeColor = 'bg-cyberred text-white';
+        if (sys.type === 'extratropical') badgeColor = 'bg-amber-500 text-black';
+        if (sys.type === 'subtropical') badgeColor = 'bg-orange-500 text-black';
+        if (sys.type === 'source') badgeColor = 'bg-blue-500 text-white';
+
+        return `
+          <div onclick="selectSystem(${sys.id})" class="p-2 rounded border cursor-pointer flex items-center justify-between transition ${isSelected ? 'bg-cyan-950 border-cybercyan' : 'bg-slate-950 border-white/10 hover:border-slate-500'}">
+            <div class="flex items-center space-x-2">
+              <span class="text-[9px] font-bold font-code px-1.5 py-0.5 rounded ${badgeColor}">${sys.type.substring(0,3).toUpperCase()}</span>
+              <div>
+                <span class="text-xs font-hud font-bold text-slate-200 block">${sys.name}</span>
+                <span class="text-[9px] text-slate-400 font-code">${Math.abs(sys.lat).toFixed(1)}°${sys.lat >= 0 ? 'N' : 'S'}, ${Math.abs(sys.lon).toFixed(1)}°${sys.lon >= 0 ? 'E' : 'W'}</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-code font-bold text-cybercyan block">${Math.round(sys.pressureHpa)} hPa</span>
+              <span class="text-[9px] text-cyberamber font-code">${sys.maxWind} km/h</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateMinPressureReadout() {
+      const readout = document.getElementById('pressureReadout');
+      if (!readout) return;
+      if (stormSystems.length === 0) {
+        readout.innerText = '1013 hPa';
+        return;
+      }
+      let minP = 1040;
+      stormSystems.forEach(s => { if (s.pressureHpa < minP) minP = s.pressureHpa; });
+      readout.innerText = `${Math.round(minP)} hPa`;
+    }
+
+    function updateParticleCount(val) {
+      particleCount = parseInt(val);
+      document.getElementById('particleCountVal').innerText = particleCount.toLocaleString();
+      scene.remove(particleSystem);
+      particleGeometry.dispose();
+      init3DParticles();
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      const icon = document.getElementById('pauseIcon');
+      if (icon) icon.className = isPaused ? 'fa-solid fa-play text-xs' : 'fa-solid fa-pause text-xs';
+    }
+
+    function setSimSpeed(mult) {
+      simSpeedMultiplier = mult;
+    }
+
+    function toggleAudio() {
+      isAudioActive = !isAudioActive;
+      const icon = document.getElementById('audioIcon');
+      if (icon) icon.className = isAudioActive ? 'fa-solid fa-volume-high text-xs text-cybergreen' : 'fa-solid fa-volume-xmark text-xs';
+
+      if (isAudioActive && !audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const bufferSize = audioCtx.sampleRate * 2;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = noiseBuffer;
+        noiseNode.loop = true;
+
+        filterNode = audioCtx.createBiquadFilter();
+        filterNode.type = 'lowpass';
+        filterNode.frequency.value = 400;
+
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.05;
+
+        noiseNode.connect(filterNode);
+        filterNode.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        noiseNode.start();
+      }
+    }
+
+    function toggleSoundingModal() {
+      document.getElementById('soundingModal').classList.toggle('hidden');
+    }
+
+    function toggleHelpModal() {
+      document.getElementById('helpModal').classList.toggle('hidden');
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    let lastTime = performance.now();
+
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(0.1, (currentTime - lastTime) / 1000.0);
+      lastTime = currentTime;
+
+      if (!isPaused) {
+        simTime += dt * simSpeedMultiplier;
+        updateParticles(dt);
+        updateStormPositions(dt);
+      }
+
+      // Planet world is kept stationary (no auto-rotation as requested)
+      // OrbitControls allows manual rotation while keeping the base planet stationary
+      controls.update();
+
+      renderer.render(scene, camera);
+    }
+
+    // Start engine on window load
+    window.onload = function() {
+      init3DScene();
+    };
+  </script>
+</body>
+</html>
